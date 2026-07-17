@@ -1,0 +1,37 @@
+[project]
+name = "hyperbot"
+version = "0.1.0"
+description = "Production-grade Hyperliquid futures grid trading bot"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.7.4",
+  "pydantic-settings>=2.1.0",
+  "fastapi>=0.111.0",
+  "uvicorn[standard]>=0.30.0",
+  "httpx>=0.27.0",
+  "websockets>=12.0.0",
+  "sqlalchemy>=2.0.0",
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.23.0",
+  "mypy>=1.10.0",
+  "black>=24.0.0",
+  "ruff>=0.5.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
