@@ -33,7 +33,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 pip install -r <(python -m pip install --dry-run -e . 2>/dev/null)
-```
+```git
 
 ## Testing
 

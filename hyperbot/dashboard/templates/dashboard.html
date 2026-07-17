@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyperbot Dashboard</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1117;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { color: #00d4aa; margin-bottom: 5px; }
+        .subtitle { color: #888; margin-bottom: 30px; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: #1a1d27;
+            border: 1px solid #2a2e3b;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card .label { font-size: 13px; color: #888; margin-bottom: 6px; }
+        .card .value { font-size: 24px; font-weight: 600; }
+        .green { color: #00d4aa; }
+        .red { color: #ff4d4d; }
+        .yellow { color: #ffcc00; }
+        .status-bar {
+            background: #1a1d27;
+            border-radius: 12px;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .badge.live { background: #ff4d4d33; color: #ff4d4d; }
+        .badge.paper { background: #00d4aa33; color: #00d4aa; }
+        .badge.mainnet { background: #ffcc0033; color: #ffcc00; }
+        .badge.testnet { background: #4d9fff33; color: #4d9fff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hyperbot</h1>
+        <div class="subtitle">Smart Dense Grid Dashboard</div>
+
+        <div class="status-bar">
+            <div>
+                <span id="mode-badge" class="badge paper">PAPER</span>
+                <span id="network-badge" class="badge testnet">TESTNET</span>
+            </div>
+            <div id="last-update" style="color:#666; font-size:13px;">—</div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="label">Mid Price</div>
+                <div class="value" id="mid">—</div>
+            </div>
+            <div class="card">
+                <div class="label">Grid Center</div>
+                <div class="value" id="center">—</div>
+            </div>
+            <div class="card">
+                <div class="label">Open Orders</div>
+                <div class="value" id="orders">—</div>
+            </div>
+            <div class="card">
+                <div class="label">Realized PnL</div>
+                <div class="value" id="pnl">—</div>
+            </div>
+            <div class="card">
+                <div class="label">Leverage</div>
+                <div class="value" id="leverage">—</div>
+            </div>
+            <div class="card">
+                <div class="label">Kill Switch</div>
+                <div class="value" id="kill">—</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function refresh() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                document.getElementById('mid').textContent = data.mid ? data.mid.toFixed(2) : '—';
+                document.getElementById('center').textContent = data.center ? data.center.toFixed(2) : '—';
+                document.getElementById('orders').textContent = `${data.open_orders}/${data.levels}`;
+                document.getElementById('pnl').textContent = data.realized_pnl.toFixed(4);
+                document.getElementById('pnl').className = 'value ' + (data.realized_pnl >= 0 ? 'green' : 'red');
+                document.getElementById('leverage').textContent = data.leverage.toFixed(1) + 'x';
+                document.getElementById('kill').textContent = data.kill_switch ? 'ON' : 'OFF';
+                document.getElementById('kill').className = 'value ' + (data.kill_switch ? 'red' : 'green');
+
+                const modeBadge = document.getElementById('mode-badge');
+                modeBadge.textContent = data.mode;
+                modeBadge.className = 'badge ' + (data.mode === 'LIVE' ? 'live' : 'paper');
+
+                const netBadge = document.getElementById('network-badge');
+                netBadge.textContent = data.network;
+                netBadge.className = 'badge ' + (data.network === 'MAINNET' ? 'mainnet' : 'testnet');
+
+                document.getElementById('last-update').textContent = data.last_update || '';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        refresh();
+        setInterval(refresh, 3000);
+    </script>
+</body>
+</html>
