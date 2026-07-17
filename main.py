@@ -1,39 +1,51 @@
 from __future__ import annotations
 
 import asyncio
-import os
+import json
 
 from hyperbot.core.config import Settings
 from hyperbot.exchange.hyperliquid import HyperLiquidClient
-from hyperbot.exchange.websocket import HyperLiquidWebSocketClient
 
 
 async def main() -> None:
     settings = Settings()
     client = HyperLiquidClient(settings)
-    ws = HyperLiquidWebSocketClient(settings.websocket_base_url)
 
+    print("Connecting...")
     await client.connect()
-    print("Connected ✔")
+    print(f"Connected ✔  Address: {client.wallet_address}")
+    print(f"Network: {'TESTNET' if settings.api_testnet else 'MAINNET'}")
 
-    await ws.connect()
-    await ws.subscribe("trades", {"symbol": "BTC"})
-    print("Websocket ✔")
+    balance = await client.get_account_balance()
+    print("\n=== Account State ===")
+    print(json.dumps(balance.get("marginSummary", {}), indent=2))
 
-    for _ in range(3):
-        await asyncio.sleep(1)
-        await ws.send_ping()
-        print("Price tick")
+    positions = await client.get_positions()
+    print(f"\nOpen positions: {len(positions)}")
 
-    order = await client.place_limit_order(symbol="BTC", side="buy", size=0.001, price=100000.0)
-    print(f"Order placed: {order}")
+    print("\nPlacing test limit order (ETH)...")
+    order = await client.place_limit_order(
+        symbol="ETH",
+        side="buy",
+        size=0.01,
+        price=1000.0,
+        reduce_only=False,
+        tif="Gtc",
+    )
+    print(json.dumps(order, indent=2))
 
-    await asyncio.sleep(5)
-    cancel_result = await client.cancel_order(client_id="demo-order")
-    print(f"Order cancelled: {cancel_result}")
+    if order.get("status") == "ok":
+        statuses = order.get("response", {}).get("data", {}).get("statuses", [])
+        for status in statuses:
+            if "resting" in status:
+                oid = status["resting"]["oid"]
+                print(f"\nCancelling order {oid}...")
+                cancel = await client.cancel_order(symbol="ETH", oid=oid)
+                print(json.dumps(cancel, indent=2))
+                break
 
-    await ws.disconnect()
     await client.disconnect()
+    print("\nDone.")
 
 
 if __name__ == "__main__":
