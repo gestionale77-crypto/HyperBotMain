@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 import websockets
@@ -21,6 +21,7 @@ class HyperLiquidWebSocketClient:
         self._reconnect_attempt = 0
         self._ws: Any | None = None
         self._listener_task: asyncio.Task[None] | None = None
+        self._handlers: dict[str, list[Callable[[dict[str, Any]], Any]]] = {}
 
     @property
     def connected(self) -> bool:
@@ -82,8 +83,22 @@ class HyperLiquidWebSocketClient:
             await self._ws.send(json.dumps({"method": "ping"}))
             await self._emit_event({"type": "heartbeat", "message": "ping"})
 
+    def on(self, event_name: str, handler: Callable[[dict[str, Any]], Any]) -> None:
+        self._handlers.setdefault(event_name, []).append(handler)
+
+    def _dispatch(self, event: dict[str, Any]) -> None:
+        event_type = str(event.get("type") or event.get("channel") or "message")
+        for handler in list(self._handlers.get(event_type, [])):
+            try:
+                result = handler(event)
+                if asyncio.iscoroutine(result):
+                    asyncio.create_task(result)
+            except Exception:
+                pass
+
     async def _emit_event(self, event: dict[str, Any]) -> None:
         await self._event_queue.put(event)
+        self._dispatch(event)
 
     async def _send_subscription(self, subscription: dict[str, Any]) -> None:
         if self._ws is None:
@@ -106,7 +121,17 @@ class HyperLiquidWebSocketClient:
             parsed = json.loads(text)
         except json.JSONDecodeError:
             parsed = {"raw": text}
-        await self._emit_event({"type": "message", "payload": parsed})
+
+        event = {"type": "message", "payload": parsed}
+        if isinstance(parsed, dict):
+            if parsed.get("channel"):
+                event = {"type": parsed["channel"], "payload": parsed}
+            elif parsed.get("data", {}).get("channel"):
+                event = {"type": parsed["data"]["channel"], "payload": parsed}
+            elif parsed.get("type"):
+                event = {"type": parsed["type"], "payload": parsed}
+
+        await self._emit_event(event)
 
     async def _listen_loop(self) -> None:
         while not self._stop_event.is_set():
@@ -123,6 +148,15 @@ class HyperLiquidWebSocketClient:
                 if not self._stop_event.is_set():
                     await self.reconnect()
                 break
+
+    def subscribe_l2book(self, symbol: str) -> None:
+        self.add_subscription("l2Book", {"symbol": symbol})
+
+    def subscribe_user_events(self, wallet: str) -> None:
+        self.add_subscription("userEvents", {"wallet": wallet})
+
+    def subscribe_order_updates(self, wallet: str) -> None:
+        self.add_subscription("orderUpdates", {"wallet": wallet})
 
     async def reconnect(self) -> None:
         self._reconnect_attempt += 1
